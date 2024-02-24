@@ -1,7 +1,18 @@
-import telebot
+from bote import bot
 from telebot import types
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import schedule
+import time
+import psycopg2
+from database.db import Database
+from database.config import host, user, password, db_name
+from bot.func import *
+from bot.nextStep.quota import add_new_quote, write_quote
 
-bot = telebot.TeleBot('1685917442:AAE2S8fI5p_J1rg_P0YoHTP0GaYU4lamtkY')
+db = Database(host, user, password, db_name)
+
+
+
 
 @bot.message_handler(commands=['start'])
 def start_messafe(message):
@@ -23,9 +34,59 @@ def buttons(message):
     markup.row(btn1, btn2)
     btn3 = types.InlineKeyboardButton('Добавить свои цитаты', callback_data='add_quotes')
     btn4 = types.InlineKeyboardButton('Мои цитаты', callback_data='own_quotes')
-    markup.row(btn3)
+    btn5 = types.InlineKeyboardButton('Добавить цитату', callback_data='add_new_quotes')
+    markup.row(btn5 ,btn3)
     markup.row(btn4)
     bot.reply_to(message, 'Прекрасно! Выбор – это ключ к индивидуальному опыту. 🤔✨\n\nВыберите одну из следующих опций:', reply_markup=markup)
 
+
+@bot.callback_query_handler(func=lambda call: True)
+def handle_motivation_callback(call):
+    if call.data == 'quotes':
+        quota = send_quotes(db)
+        bot.send_message(call.message.chat.id, quota)
+    elif call.data == 'authors':
+        markup = types.InlineKeyboardMarkup()
+        btn1 = types.InlineKeyboardButton('Робин Шарма', callback_data='Sarma')
+        btn2 = types.InlineKeyboardButton('Авраам Линкольн', callback_data='Linkoln')
+        btn3 = types.InlineKeyboardButton('Фёдор Михайлович Достое́вский', callback_data='dostoyevski')
+        btn4 = types.InlineKeyboardButton('Назад', callback_data='back')
+        markup.row(btn1, btn2)
+        markup.row(btn3)
+        markup.row(btn4)
+        bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup)
+        
+    elif call.data == 'add_quotes':
+        bot.send_message(call.message.chat.id, 'Введите вашу цитату')
+        bot.register_next_step_handler(call.message, write_quote, db)
+    elif call.data == 'own_quotes':
+        user_username = call.message.chat.username
+        quota = my_quote(db, f'@{user_username}')
+        bot.send_message(call.message.chat.id, quota)
+    elif call.data == 'back':
+        markup = types.InlineKeyboardMarkup()
+
+        btn1 = types.InlineKeyboardButton('Цитаты', callback_data='quotes')
+        btn2 = types.InlineKeyboardButton('Авторы', callback_data='authors')
+        markup.row(btn1, btn2)
+        btn3 = types.InlineKeyboardButton('Добавить свои цитаты', callback_data='add_quotes')
+        btn4 = types.InlineKeyboardButton('Мои цитаты', callback_data='own_quotes')
+        markup.row(btn3)
+        markup.row(btn4)
+        bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup)
+    elif call.data == 'Sarma':
+        quota = send_sarma(db)
+        bot.send_message(call.message.chat.id, quota)
+    elif call.data == 'Linkoln':
+        quota = send_linkoln(db)
+        bot.send_message(call.message.chat.id, quota)
+    elif call.data == 'dostoyevski':
+        quota = send_dostoyevski(db)
+        bot.send_message(call.message.chat.id, quota)
+    elif call.data == 'add_new_quotes':
+        bot.send_message(call.message.chat.id, 'Введите цитату')
+        bot.register_next_step_handler(call.message, add_new_quote, db)
+        
 if __name__=='__main__':
+
     bot.infinity_polling()
